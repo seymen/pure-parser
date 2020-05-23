@@ -18,17 +18,17 @@ instance showJsonValue :: Show JsonValue where
   show JsonNull = "JsonNull"
   show (JsonBool a) = "JsonBool " <> (show a)
 
-type Parser a = String -> Maybe (Tuple String a)
+newtype Parser a = Parser (String -> Maybe (Tuple String a))
+
+runParser :: forall a. Parser a -> String -> Maybe (Tuple String a)
+runParser (Parser p) str = p str
 
 charP :: Char -> Parser Char
-charP c = \str ->
+charP c = Parser $ \str ->
   case (splitAt 1 str) of
     {before:y, after:ys}
       |  y == (singleton c) -> Just (Tuple ys c)
     _ -> Nothing
-
-runParser :: forall a. Parser a -> String -> Maybe (Tuple String a)
-runParser p str = p str
 
 main :: Effect Unit
 main = logShow $
