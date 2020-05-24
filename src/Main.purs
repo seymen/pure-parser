@@ -9,6 +9,8 @@ import Data.String (splitAt)
 import Data.String.CodeUnits (singleton, toCharArray, fromCharArray)
 import Data.Tuple (Tuple(..))
 import Data.Traversable (sequenceDefault)
+import Control.Alt (class Alt, (<|>))
+import Unsafe.Coerce (unsafeCoerce)
 
 data JsonValue = JsonNull
                | JsonBool Boolean
@@ -36,6 +38,9 @@ instance applyParser :: (Functor Parser) => Apply Parser where
      Tuple input'' a <- runParser p2 input'
      Just (Tuple input'' (f a))
 
+instance altParser :: (Functor Parser) => Alt Parser where
+  alt p1 p2 = Parser $ \str -> (runParser p1 str) <|> (runParser p2 str)
+
 charP :: Char -> Parser Char
 charP c = Parser $ \str ->
   case (splitAt 1 str) of
@@ -49,8 +54,15 @@ stringP = map fromCharArray <<< sequenceDefault <<< map charP <<< toCharArray
 nullP :: Parser JsonValue
 nullP = map (\_ -> JsonNull) $ stringP "null"
 
+boolP :: Parser JsonValue
+boolP = map f ((stringP "true") <|> (stringP "false"))
+  where f "true"  = JsonBool true
+        f "false" = JsonBool false
+        f _       = unsafeCoerce JsonBool
+
 main :: Effect Unit
 main = logShow $
-  runParser nullP "nullable"
+  runParser boolP "false"
+  {-- runParser nullP "nullable" --}
   {-- runParser (stringP "null") "nullable" --}
   {-- runParser (charP 'n') "nice" --}
