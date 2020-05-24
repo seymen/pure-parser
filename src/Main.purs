@@ -23,6 +23,11 @@ newtype Parser a = Parser (String -> Maybe (Tuple String a))
 runParser :: forall a. Parser a -> String -> Maybe (Tuple String a)
 runParser (Parser p) str = p str
 
+instance functorParser :: Functor Parser where
+  map f p = Parser $ \str -> do
+     Tuple input' x <- runParser p str
+     Just (Tuple input' (f x))
+
 charP :: Char -> Parser Char
 charP c = Parser $ \str ->
   case (splitAt 1 str) of
