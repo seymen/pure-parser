@@ -4,11 +4,9 @@ import Prelude
 
 import Effect (Effect)
 import Effect.Console (logShow)
-import Data.Foldable (fold)
-import Data.Maybe
+import Data.Maybe (Maybe(..))
 import Data.String (splitAt)
-import Data.Char
-import Data.String.CodeUnits
+import Data.String.CodeUnits (singleton)
 import Data.Tuple (Tuple(..))
 
 data JsonValue = JsonNull
@@ -27,6 +25,15 @@ instance functorParser :: Functor Parser where
   map f p = Parser $ \str -> do
      Tuple input' x <- runParser p str
      Just (Tuple input' (f x))
+
+instance applicativeParser :: Applicative Parser where
+  pure x = Parser $ \str -> Just (Tuple str x)
+
+instance applyParser :: (Functor Parser) => Apply Parser where
+  apply p1 p2 = Parser $ \str -> do
+     Tuple input' f <- runParser p1 str
+     Tuple input'' a <- runParser p2 input'
+     Just (Tuple input'' (f a))
 
 charP :: Char -> Parser Char
 charP c = Parser $ \str ->
