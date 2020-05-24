@@ -6,8 +6,9 @@ import Effect (Effect)
 import Effect.Console (logShow)
 import Data.Maybe (Maybe(..))
 import Data.String (splitAt)
-import Data.String.CodeUnits (singleton)
+import Data.String.CodeUnits (singleton, toCharArray, fromCharArray)
 import Data.Tuple (Tuple(..))
+import Data.Traversable
 
 data JsonValue = JsonNull
                | JsonBool Boolean
@@ -42,6 +43,10 @@ charP c = Parser $ \str ->
       |  y == (singleton c) -> Just (Tuple ys c)
     _ -> Nothing
 
+stringP :: String -> Parser String
+stringP = map fromCharArray <<< sequenceDefault <<< map charP <<< toCharArray
+
 main :: Effect Unit
 main = logShow $
-  runParser (charP 'n') "nice"
+  runParser (stringP "null") "null"
+  {-- runParser (charP 'n') "nice" --}
