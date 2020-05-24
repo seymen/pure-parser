@@ -8,7 +8,7 @@ import Data.Maybe (Maybe(..))
 import Data.String (splitAt)
 import Data.String.CodeUnits (singleton, toCharArray, fromCharArray)
 import Data.Tuple (Tuple(..))
-import Data.Traversable
+import Data.Traversable (sequenceDefault)
 
 data JsonValue = JsonNull
                | JsonBool Boolean
@@ -46,7 +46,11 @@ charP c = Parser $ \str ->
 stringP :: String -> Parser String
 stringP = map fromCharArray <<< sequenceDefault <<< map charP <<< toCharArray
 
+nullP :: Parser JsonValue
+nullP = map (\_ -> JsonNull) $ stringP "null"
+
 main :: Effect Unit
 main = logShow $
-  runParser (stringP "null") "null"
+  runParser nullP "nullable"
+  {-- runParser (stringP "null") "nullable" --}
   {-- runParser (charP 'n') "nice" --}
