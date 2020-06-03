@@ -10,8 +10,10 @@ You can edit this file as you like.
   , "lists"
   , "maybe"
   , "psci-support"
+  , "read"
   , "strings"
   , "tuples"
+  , "unicode"
   , "unsafe-coerce"
   ]
 , packages = ./packages.dhall

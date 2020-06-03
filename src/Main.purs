@@ -4,6 +4,7 @@ import Prelude
 
 import Effect (Effect)
 import Effect.Console (logShow)
+import Data.Array (span)
 import Data.Maybe (Maybe(..))
 import Data.String (splitAt)
 import Data.String.CodeUnits (singleton, toCharArray, fromCharArray)
@@ -11,13 +12,17 @@ import Data.Tuple (Tuple(..))
 import Data.Traversable (sequenceDefault)
 import Control.Alt (class Alt, (<|>))
 import Unsafe.Coerce (unsafeCoerce)
+import Data.Char.Unicode (isDigit)
+import Data.Int (fromString)
 
 data JsonValue = JsonNull
                | JsonBool Boolean
+               | JsonNumber Int
 
 instance showJsonValue :: Show JsonValue where
   show JsonNull = "JsonNull"
   show (JsonBool a) = "JsonBool " <> (show a)
+  show (JsonNumber a) = "JsonNumber " <> (show a)
 
 newtype Parser a = Parser (String -> Maybe (Tuple String a))
 
@@ -60,9 +65,27 @@ boolP = map f ((stringP "true") <|> (stringP "false"))
         f "false" = JsonBool false
         f _       = unsafeCoerce JsonBool
 
+ifP :: (Char -> Boolean) -> Parser String
+ifP pred =
+  Parser \str ->
+    let {init, rest} = span pred $ toCharArray str
+    in Just (Tuple (fromCharArray rest) (fromCharArray init))
+
+numberP :: Parser JsonValue
+numberP = Parser $ \str -> do
+  Tuple input' digitsAsStr <- runParser (ifP isDigit) str
+  int' <- fromString digitsAsStr
+  Just (Tuple input' (JsonNumber int'))
+
+jsonP :: Parser JsonValue
+jsonP = nullP <|> boolP <|> numberP
+
 main :: Effect Unit
 main = logShow $
-  runParser boolP "false"
+  runParser jsonP "true"
+  {-- runParser numberP "2343" --}
+  {-- runParser (ifP isDigit) "23432" --}
+  {-- runParser boolP "false" --}
   {-- runParser nullP "nullable" --}
   {-- runParser (stringP "null") "nullable" --}
   {-- runParser (charP 'n') "nice" --}
