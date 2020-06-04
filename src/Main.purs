@@ -18,11 +18,13 @@ import Data.Int (fromString)
 data JsonValue = JsonNull
                | JsonBool Boolean
                | JsonNumber Int
+               | JsonString String
 
 instance showJsonValue :: Show JsonValue where
   show JsonNull = "JsonNull"
   show (JsonBool a) = "JsonBool " <> (show a)
   show (JsonNumber a) = "JsonNumber " <> (show a)
+  show (JsonString a) = "JsonString " <> "\"" <> a <> "\""
 
 newtype Parser a = Parser (String -> Maybe (Tuple String a))
 
@@ -56,33 +58,37 @@ charP c = Parser $ \str ->
 stringP :: String -> Parser String
 stringP = map fromCharArray <<< sequenceDefault <<< map charP <<< toCharArray
 
-nullP :: Parser JsonValue
-nullP = map (\_ -> JsonNull) $ stringP "null"
-
-boolP :: Parser JsonValue
-boolP = map f ((stringP "true") <|> (stringP "false"))
-  where f "true"  = JsonBool true
-        f "false" = JsonBool false
-        f _       = unsafeCoerce JsonBool
-
 ifP :: (Char -> Boolean) -> Parser String
 ifP pred =
   Parser \str ->
     let {init, rest} = span pred $ toCharArray str
     in Just (Tuple (fromCharArray rest) (fromCharArray init))
 
-numberP :: Parser JsonValue
-numberP = Parser $ \str -> do
+jsonNullP :: Parser JsonValue
+jsonNullP = map (\_ -> JsonNull) $ stringP "null"
+
+jsonBoolP :: Parser JsonValue
+jsonBoolP = map f ((stringP "true") <|> (stringP "false"))
+  where f "true"  = JsonBool true
+        f "false" = JsonBool false
+        f _       = unsafeCoerce JsonBool
+
+jsonNumberP :: Parser JsonValue
+jsonNumberP = Parser $ \str -> do
   Tuple input' digitsAsStr <- runParser (ifP isDigit) str
   int' <- fromString digitsAsStr
   Just (Tuple input' (JsonNumber int'))
 
+jsonStringP :: Parser JsonValue
+jsonStringP = JsonString <$> (charP '"' *> stringLiteral <* charP '"')
+  where stringLiteral = ifP (notEq '"')
+
 jsonP :: Parser JsonValue
-jsonP = nullP <|> boolP <|> numberP
+jsonP = jsonNullP <|> jsonBoolP <|> jsonNumberP <|> jsonStringP
 
 main :: Effect Unit
 main = logShow $
-  runParser jsonP "true"
+  runParser jsonP "123\"hello\""
   {-- runParser numberP "2343" --}
   {-- runParser (ifP isDigit) "23432" --}
   {-- runParser boolP "false" --}
