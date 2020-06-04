@@ -4,27 +4,31 @@ import Prelude
 
 import Effect (Effect)
 import Effect.Console (logShow)
-import Data.Array (span)
+import Data.Array (span, (:), many)
 import Data.Maybe (Maybe(..))
 import Data.String (splitAt)
 import Data.String.CodeUnits (singleton, toCharArray, fromCharArray)
 import Data.Tuple (Tuple(..))
 import Data.Traversable (sequenceDefault)
-import Control.Alt (class Alt, (<|>))
+import Control.Plus (class Alt, class Plus, (<|>))
+import Control.Lazy (class Lazy)
+import Control.Alternative (class Alternative)
 import Unsafe.Coerce (unsafeCoerce)
-import Data.Char.Unicode (isDigit)
+import Data.Char.Unicode (isDigit, isSpace)
 import Data.Int (fromString)
 
 data JsonValue = JsonNull
                | JsonBool Boolean
                | JsonNumber Int
                | JsonString String
+               | JsonObject (Array (Tuple String JsonValue))
 
 instance showJsonValue :: Show JsonValue where
   show JsonNull = "JsonNull"
   show (JsonBool a) = "JsonBool " <> (show a)
   show (JsonNumber a) = "JsonNumber " <> (show a)
   show (JsonString a) = "JsonString " <> "\"" <> a <> "\""
+  show (JsonObject a) = "JsonObject " <> (show a)
 
 newtype Parser a = Parser (String -> Maybe (Tuple String a))
 
@@ -48,6 +52,14 @@ instance applyParser :: (Functor Parser) => Apply Parser where
 instance altParser :: (Functor Parser) => Alt Parser where
   alt p1 p2 = Parser $ \str -> (runParser p1 str) <|> (runParser p2 str)
 
+instance plusParser :: (Alt Parser) => Plus Parser where
+  empty = Parser $ \_ -> Nothing
+
+instance alternativeParser :: (Applicative Parser, Plus Parser) => Alternative Parser
+
+instance lazyParser :: Lazy (Parser (Array a)) where
+  defer g = Parser (\s -> runParser (g unit) s)
+
 charP :: Char -> Parser Char
 charP c = Parser $ \str ->
   case (splitAt 1 str) of
@@ -57,6 +69,9 @@ charP c = Parser $ \str ->
 
 stringP :: String -> Parser String
 stringP = map fromCharArray <<< sequenceDefault <<< map charP <<< toCharArray
+
+spaceP :: Parser String
+spaceP = ifP isSpace
 
 ifP :: (Char -> Boolean) -> Parser String
 ifP pred =
@@ -79,16 +94,28 @@ jsonNumberP = Parser $ \str -> do
   int' <- fromString digitsAsStr
   Just (Tuple input' (JsonNumber int'))
 
-jsonStringP :: Parser JsonValue
-jsonStringP = JsonString <$> (charP '"' *> stringLiteral <* charP '"')
-  where stringLiteral = ifP (notEq '"')
+stringLiteral :: Parser String
+stringLiteral = charP '"' *> ifP (notEq '"') <* charP '"'
 
-jsonP :: Parser JsonValue
-jsonP = jsonNullP <|> jsonBoolP <|> jsonNumberP <|> jsonStringP
+jsonStringP :: Parser JsonValue
+jsonStringP = JsonString <$> stringLiteral
+
+sepBy :: forall a b. Parser a -> Parser b -> Parser (Array b)
+sepBy sep element = (:) <$> element <*> many (sep *> element)
+
+jsonObjectP :: Parser JsonValue
+jsonObjectP = JsonObject <$>
+  (charP '{' *> spaceP *> sepBy (spaceP *> charP ',' <* spaceP) pair <* spaceP <* charP '}')
+  where pair = (\key _ value -> Tuple key value) <$> stringLiteral <*> (spaceP *> charP ':' <* spaceP) <*> jsonValueP
+
+jsonValueP :: Parser JsonValue
+jsonValueP = jsonNullP <|> jsonBoolP <|> jsonNumberP <|> jsonStringP
 
 main :: Effect Unit
 main = logShow $
-  runParser jsonP "123\"hello\""
+  {-- runParser $ sepBy (charP ',') (stringP "1,2,3,4") --}
+  {-- runParser jsonObjectP "{}" --}
+  runParser jsonObjectP "{\"a\": \"b\", \"b\":123}"
   {-- runParser numberP "2343" --}
   {-- runParser (ifP isDigit) "23432" --}
   {-- runParser boolP "false" --}
